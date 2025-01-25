@@ -1,20 +1,29 @@
 from sqlalchemy.orm import Session
+
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordRequestForm
 
 from dto.token_schemas import Token
-from datetime import timedelta
-from security.auth import authenticate_user
+from dto.user_schemas import User
 
+from datetime import timedelta
+
+from security.auth import authenticate_user
 from security.jwt import create_access_token
+from security.auth import get_current_user
+
 from config.settings import settings
 from config.database import get_db
 
+
 auth_router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"],
+    prefix="/user",
+    tags=["Authentication & User Service"],
     responses={404: {"description": "Not found"}},
 )
+
+
+# 로그인
 
 @auth_router.post("/login", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -34,3 +43,12 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+# 회원 조회
+
+@auth_router.get("/my_account", response_model=User)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    """
+    현재 로그인한 사용자 정보 반환
+    """
+    return current_user

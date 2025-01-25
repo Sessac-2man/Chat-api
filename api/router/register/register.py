@@ -8,7 +8,7 @@ from config.models import Member
 from dto.register_schemas import RegisterUser
 
 register_router = APIRouter(
-    prefix="/auth",
+    prefix="/user",
     tags=["Authentication"],
     responses={404: {"description": "Not found"}},
 )
