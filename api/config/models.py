@@ -28,3 +28,11 @@ class Message(Base):
 
     # Relationship with Member
     owner = relationship("Member", back_populates="messages")
+
+class ChatRoom(Base):
+    __tablename__ = "chat_rooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    messages = relationship("Message", back_populates="chat_room")
