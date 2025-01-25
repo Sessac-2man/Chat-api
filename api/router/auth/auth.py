@@ -1,16 +1,12 @@
-from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status, APIRouter
-from fastapi.security import OAuth2PasswordBearer
 from fastapi.security import OAuth2PasswordRequestForm
-from passlib.context import CryptContext
-from jose import JWTError, jwt
 
-from .token_schemas import Token
+from dto.token_schemas import Token
 from datetime import timedelta
-from .auth_user import authenticate_user
-from config.jwt import create_access_token
+from security.auth import authenticate_user
 
+from security.jwt import create_access_token
 from config.settings import settings
 from config.database import get_db
 

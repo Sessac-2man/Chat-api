@@ -1,8 +1,10 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 class User(BaseModel):
     username: str
     email: EmailStr
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

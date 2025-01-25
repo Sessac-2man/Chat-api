@@ -4,11 +4,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
-from config.jwt import decode_access_token
+from security.jwt import decode_access_token
 from config.database import get_db
 from config.models import Member
-from router.auth.token_schemas import TokenData
-from config.settings import settings
+from dto.token_schemas import TokenData
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")

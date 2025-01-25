@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt, JWTError
-from .settings import settings
+from config.settings import settings
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm

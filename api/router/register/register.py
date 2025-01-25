@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 from config.database import get_db
 from config.models import Member
 
-from .register_schemas import RegisterUser
+from dto.register_schemas import RegisterUser
 
 register_router = APIRouter(
     prefix="/auth",
