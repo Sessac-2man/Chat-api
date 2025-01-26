@@ -19,59 +19,8 @@ chat_router = APIRouter(
 
 manager = ConnectManager()
 
-@chat_router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str):
-    """
-    WebSocket 연결 엔드포인트 (JWT 검증 포함)
-    """
-    try:
-        # JWT 검증
-        payload = decode_access_token(token)
-        if not payload:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-        username = payload.get("sub")
-        db: Session = next(get_db())
-        user = db.query(Member).filter(Member.username == username).first()
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-        # WebSocket 연결 관리
-        await manager.connect(websocket)
-        print(f"User {username} connected")
-
-        # 메시지 송수신
-        while True:
-            data = await websocket.receive_json()
-            message_data = MessageCreate(**data)  # DTO로 데이터 검증
-
-            # 메시지 저장
-            message = Message(content=message_data.content, user_id=user.id)
-            db.add(message)
-            db.commit()
-
-            # 브로드캐스트 메시지
-            broadcast_message = MessageRead(
-                id=message.id,
-                content=message.content,
-                timestamp=message.timestamp,
-                username=user.username,
-            )
-            await manager.broadcast(broadcast_message.dict())
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        print(f"User {username} disconnected")
-
-    except Exception as e:
-        print(f"Error: {e}")
-        manager.disconnect(websocket)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-
 # 채팅방 조회
-
-
-@router.get("/rooms", response_model=list[ChatRoomRead])
+@chat_router.get("/rooms", response_model=list[ChatRoomRead])
 def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):
     """
     사용자와 연결된 채팅방 목록 반환
@@ -108,3 +57,59 @@ def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):
 
 
 # 채팅방 접속
+
+@chat_router.websocket("/ws/{room_id}")
+async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str):
+    """
+    특정 채팅방 WebSocket 연결
+    """
+    try:
+        # JWT 검증
+        payload = decode_access_token(token)
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        username = payload.get("sub")
+        db: Session = next(get_db())
+        user = db.query(Member).filter(Member.username == username).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        # 채팅방 존재 여부 확인
+        chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not chat_room:
+            raise HTTPException(status_code=404, detail="Chat room not found")
+
+        # WebSocket 연결 관리
+        await manager.connect(websocket)
+        print(f"User {username} connected to room {room_id}")
+
+        # 메시지 송수신
+        while True:
+            data = await websocket.receive_json()
+            content = data.get("message")
+
+            # 메시지 저장
+            message = Message(content=content, user_id=user.id, room_id=room_id)
+            db.add(message)
+            db.commit()
+
+            # 브로드캐스트 메시지
+            broadcast_message = {
+                "username": username,
+                "content": content,
+                "timestamp": datetime.utcnow().isoformat(),
+                "room_id": room_id,
+            }
+            await manager.broadcast(broadcast_message)
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        print(f"User {username} disconnected from room {room_id}")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        await websocket.close(code=1008)
+
+
+

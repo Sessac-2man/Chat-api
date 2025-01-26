@@ -1,35 +1,19 @@
 from fastapi import WebSocket
-from typing import List
 
 class ConnectManager:
-
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections = {}  # room_id별 WebSocket 리스트
 
-    async def connect(self, websocket: WebSocket):
-        """
+    def connect(self, websocket: WebSocket, room_id: int):
+        if room_id not in self.active_connections:
+            self.active_connections[room_id] = []
+        self.active_connections[room_id].append(websocket)
 
-        :param websocket: 웹 소켓 연결 추가
-        :return:
-        """
+    def disconnect(self, websocket: WebSocket, room_id: int):
+        if room_id in self.active_connections:
+            self.active_connections[room_id].remove(websocket)
 
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    async def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-            print(f"연결해제 하였음 {websocket.client}")
-
-    async def broadcast(self, message : dict):
-        """
-
-        :param message: 활성 연결에 메세지 브로드 캐스트
-        :return:
-        """
-        for connect in self.active_connections:
-            try:
-                await connect.send_json(message)
-            except Exception as e :
-                print(f"연결 실패 {e}")
+    async def broadcast(self, message: dict, room_id: int):
+        if room_id in self.active_connections:
+            for connection in self.active_connections[room_id]:
+                await connection.send_json(message)

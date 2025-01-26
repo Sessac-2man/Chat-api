@@ -16,7 +16,7 @@ class MessageRead(BaseModel):
     class Config:
         from_attributes = True  # ORM 모드 활성화
 
-class ChatRoomRead(Base):
+class ChatRoomRead(BaseModel):
     id:int
     name:str
     create_at:datetime
