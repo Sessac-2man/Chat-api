@@ -1,13 +1,14 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from dto.chat_schemas import MessageCreate, MessageRead
+from dto.chat_schemas import MessageCreate, MessageRead, ChatRoomRead
 
 from utils.connection_manager import ConnectManager
 
 from config.database import get_db
 from config.models import Message, Member
 from security.jwt import decode_access_token
+
 
 
 chat_router = APIRouter(
@@ -66,3 +67,44 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         print(f"Error: {e}")
         manager.disconnect(websocket)
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+
+# 채팅방 조회
+
+
+@router.get("/rooms", response_model=list[ChatRoomRead])
+def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):
+    """
+    사용자와 연결된 채팅방 목록 반환
+    """
+    # 사용자와 연결된 채팅방 조회
+    chat_rooms = (
+        db.query(ChatRoom)
+        .filter(ChatRoom.members.any(id=user_id))
+        .all()
+    )
+
+    # 채팅방 데이터를 DTO로 변환
+    response = []
+    for room in chat_rooms:
+        # 채팅방의 마지막 메시지 가져오기
+        last_message = (
+            db.query(Message.content)
+            .filter(Message.room_id == room.id)
+            .order_by(Message.timestamp.desc())
+            .first()
+        )
+
+        # ChatRoomRead DTO로 변환
+        response.append(
+            ChatRoomRead(
+                id=room.id,
+                name=room.name,
+                created_at=room.created_at,
+                last_message=last_message[0] if last_message else None
+            )
+        )
+
+    return response
+
+
+# 채팅방 접속
