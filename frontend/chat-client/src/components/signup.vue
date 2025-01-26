@@ -14,6 +14,16 @@
           />
         </div>
         <div class="form-group">
+          <label for="email">이메일</label>
+          <input 
+            v-model="form.email" 
+            id="email" 
+            type="email" 
+            required 
+            placeholder="이메일을 입력하세요"
+          />
+        </div>
+        <div class="form-group">
           <label for="password">비밀번호</label>
           <input 
             v-model="form.password" 
@@ -36,12 +46,13 @@
         <button type="submit" class="signup-button">회원가입</button>
       </form>
       <div class="login-link">
-        이미 계정이 있으신가요? <router-link to="/" class="login-button">로그인</router-link>
+        이미 계정이 있으신가요? <router-link to="/login" class="login-button">로그인</router-link>
       </div>
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
     </div>
   </div>
 </template>
+
 
 <script>
 import axios from 'axios'
@@ -52,6 +63,7 @@ export default {
     return {
       form: {
         username: '',
+        email: '',  // 이메일 필드 추가
         password: '',
         confirmPassword: ''
       },
@@ -66,14 +78,17 @@ export default {
           return
         }
 
-        const response = await axios.post('http://localhost:8001/user/register', {
+        const response = await axios.post('http://localhost:8002/user/register', {
           username: this.form.username,
+          email: this.form.email,  // 이메일 추가
           password: this.form.password
         })
 
         if (response.data) {
           // 회원가입 성공
-          this.$router.push('/') // 로그인 페이지로 이동
+          alert('회원가입이 성공적으로 완료되었습니다! 로그인 페이지로 이동합니다.')
+          this.$router.push('/')
+
         }
       } catch (error) {
         if (error.response) {

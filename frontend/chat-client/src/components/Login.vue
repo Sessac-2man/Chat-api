@@ -5,56 +5,80 @@
       <form @submit.prevent="login" class="login-form">
         <div class="form-group">
           <label for="username">아이디</label>
-          <input v-model="form.username" id="username" type="text" required placeholder="아이디를 입력하세요" />
+          <input 
+            v-model="form.username" 
+            id="username" 
+            type="text" 
+            required 
+            placeholder="아이디를 입력하세요"
+          />
         </div>
         <div class="form-group">
           <label for="password">비밀번호</label>
-          <input v-model="form.password" id="password" type="password" required placeholder="비밀번호를 입력하세요" />
+          <input 
+            v-model="form.password" 
+            id="password" 
+            type="password" 
+            required 
+            placeholder="비밀번호를 입력하세요"
+          />
         </div>
         <button type="submit" class="login-button">로그인</button>
       </form>
       <div class="signup-link">
-        계정이 없으신가요? <router-link to="/signup" class="signup-text">회원가입</router-link>
+        계정이 없으신가요? <router-link to="/signup">회원가입</router-link>
       </div>
       <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
     </div>
   </div>
 </template>
+
 <script>
-import { mapActions } from 'vuex'
-import API from "../services/api";
+import axios from 'axios';  // 세미콜론 추가
 
 export default {
+  name: 'Login',
   data() {
     return {
       form: {
-        username: "",
-        password: "",
+        username: '',
+        password: ''
       },
-      errorMessage: "",
-    };
+      errorMessage: ''
+    };  // 세미콜론 추가
   },
   methods: {
-    ...mapActions(['setToken']),
     async login() {
       try {
-        const response = await API.post("/user/login", this.form, {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        });
-        const { access_token } = response.data;
+        const params = new URLSearchParams();  // 세미콜론 추가
+        params.append('username', this.form.username);  // 세미콜론 추가
+        params.append('password', this.form.password);  // 세미콜론 추가
+        params.append('scope', '');  // 세미콜론 추가
+        params.append('grant_type', 'password');  // 세미콜론 추가
+        params.append('client_id', 'string');  // 세미콜론 추가
+        params.append('client_secret', 'string');  // 세미콜론 추가
 
-        // Vuex store를 통해 토큰 저장
-        await this.setToken(access_token);
-        
-        this.$router.push("/chat");
+        const response = await axios.post('http://localhost:8002/user/login', params, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });  // 세미콜론 추가
+
+        if (response.data && response.data.access_token) {
+          localStorage.setItem('access_token', response.data.access_token);  // 세미콜론 추가
+          localStorage.setItem('username', this.form.username);  // 세미콜론 추가
+          
+          this.$store.dispatch('setToken', response.data.access_token);  // 세미콜론 추가
+          alert('로그인이 완료되었습니다!');  // 세미콜론 추가
+          this.$router.push('/');  // 세미콜론 추가
+        }
       } catch (error) {
-        this.errorMessage = "아이디 또는 비밀번호가 올바르지 않습니다.";
+        this.errorMessage = '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.';  // 세미콜론 추가
+        console.error('Login error:', error);  // 세미콜론 추가
       }
-    },
-  },
-};
+    }
+  }
+};  // 세미콜론 추가
 </script>
 
 <style scoped>

@@ -5,12 +5,13 @@
         ChatApp
       </router-link>
       <div class="nav-links">
-        <template v-if="isLoggedIn">
+        <template v-if="isAuthenticated">
+          <span class="welcome-message">{{ username }}님 반갑습니다</span>
           <router-link to="/chat" class="nav-link">채팅</router-link>
-          <button @click="logout" class="nav-link logout-btn">로그아웃</button>
+          <button @click="handleLogout" class="nav-link logout-btn">로그아웃</button>
         </template>
         <template v-else>
-          <router-link to="/" class="nav-link">로그인</router-link>
+          <router-link to="/login" class="nav-link">로그인</router-link>
           <router-link to="/signup" class="nav-link">회원가입</router-link>
         </template>
       </div>
@@ -19,20 +20,32 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 export default {
   name: 'NavBar',
-  data() {
-    return {
-      isLoggedIn: false // 나중에 Vuex로 관리할 예정
+  computed: {
+    ...mapGetters(['isAuthenticated']),
+    username() {
+      return localStorage.getItem('username') || '사용자';
     }
   },
   methods: {
-    logout() {
-      this.isLoggedIn = false;
-      this.$router.push('/');
+    handleLogout() {
+      this.$store.dispatch('logout');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('username');
+      this.$router.push('/login');
+    }
+  },
+  created() {
+    // 컴포넌트가 생성될 때 로그인 상태 체크
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      this.$store.dispatch('setToken', token);
     }
   }
-}
+};
 </script>
 
 <style scoped>
