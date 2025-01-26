@@ -15,7 +15,7 @@
           <router-link to="/signup" class="nav-link">회원가입</router-link>
         </template>
       </div>
-    </div>
+    </div> 
   </nav>
 </template>
 
