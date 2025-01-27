@@ -3,7 +3,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from router.register.register import register_router 
-from router.user.auth import auth_router
+from router.user.users import auth_router
 from router.chat_service.chat import chat_router
 
 app = FastAPI()

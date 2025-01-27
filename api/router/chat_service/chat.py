@@ -4,12 +4,16 @@ from sqlalchemy.orm import Session
 from dto.chat_schemas import MessageCreate, MessageRead, ChatRoomRead
 
 from utils.connection_manager import ConnectManager
+from cached.redis_manager import RedisManager
+
+from datetime import datetime
 
 from config.database import get_db
 from config.models import Message, Member
+
 from security.jwt import decode_access_token
 
-
+from .classify_text import classify_text
 
 chat_router = APIRouter(
     prefix="/chat",
@@ -18,6 +22,7 @@ chat_router = APIRouter(
 )
 
 manager = ConnectManager()
+redis = RedisManager()
 
 # 채팅방 조회
 @chat_router.get("/rooms", response_model=list[ChatRoomRead])
@@ -38,7 +43,7 @@ def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):
         # 채팅방의 마지막 메시지 가져오기
         last_message = (
             db.query(Message.content)
-            .filter(Message.room_id == room.id)
+            .filter(Message.chat_room_id == room.id)
             .order_by(Message.timestamp.desc())
             .first()
         )
@@ -57,12 +62,8 @@ def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):
 
 
 # 채팅방 접속
-
 @chat_router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str):
-    """
-    특정 채팅방 WebSocket 연결
-    """
     try:
         # JWT 검증
         payload = decode_access_token(token)
@@ -75,33 +76,69 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str):
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
+        # 사용자 차단 상태 확인
+        if redis.check_ban_status(user.id):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            raise HTTPException(status_code=403, detail="User is banned")
+
         # 채팅방 존재 여부 확인
         chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
         if not chat_room:
             raise HTTPException(status_code=404, detail="Chat room not found")
 
-        # WebSocket 연결 관리
         await manager.connect(websocket)
         print(f"User {username} connected to room {room_id}")
 
-        # 메시지 송수신
         while True:
             data = await websocket.receive_json()
             content = data.get("message")
 
+            if not content:
+                await websocket.send_json({"error": "Empty message"})
+                continue
+
+            # 혐오 표현 감지
+            classify_result = await classify_text([content])
+            label = classify_result[0]["label"]
+
+            if label == "혐오":
+                # Redis에서 경고 횟수 증가 및 차단 여부 확인
+                is_banned = redis.hate_count(user.id)
+
+                if is_banned:
+                    await manager.broadcast({
+                        "username": username,
+                        "content": "사용자가 차단되었습니다.",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "room_id": room_id,
+                    })
+                    redis.sync_hate_data_to_db(user.id, db)  # DB 동기화
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    continue
+
+                warning_count = redis.get_current_hate_count(user.id)
+                await manager.broadcast({
+                    "username": username,
+                    "content": f"경고 {warning_count}/3: 혐오 표현이 감지되었습니다.",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "room_id": room_id,
+                })
+                continue
+
             # 메시지 저장
-            message = Message(content=content, user_id=user.id, room_id=room_id)
+            message = Message(content=content, user_id=user.id, chat_room_id=room_id)
             db.add(message)
             db.commit()
 
-            # 브로드캐스트 메시지
-            broadcast_message = {
+            # 메시지 캐싱
+            redis.cache_message(room_id, content)
+
+            await manager.broadcast({
                 "username": username,
                 "content": content,
                 "timestamp": datetime.utcnow().isoformat(),
                 "room_id": room_id,
-            }
-            await manager.broadcast(broadcast_message)
+            })
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -110,6 +147,3 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str):
     except Exception as e:
         print(f"Error: {e}")
         await websocket.close(code=1008)
-
-
-

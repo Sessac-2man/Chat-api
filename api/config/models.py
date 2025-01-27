@@ -4,12 +4,6 @@ from datetime import datetime
 from .database import Base
 
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
-from sqlalchemy.orm import relationship
-from datetime import datetime
-from .database import Base
-
-
 class Member(Base):
     __tablename__ = "members"
 
@@ -19,6 +13,10 @@ class Member(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+    warnings = Column(Integer, default=0)  # 경고 횟수
+    is_blocked = Column(String, default=False)  # 차단 여부
 
     # Relationship with Message
     messages = relationship("Message", back_populates="owner")

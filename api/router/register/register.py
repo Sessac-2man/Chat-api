@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
 
 from config.database import get_db
 from config.models import Member
+
+from .hasing import hash_password  # 모듈화된 해싱 함수 가져오기
 
 from dto.register_schemas import RegisterUser
 
@@ -12,12 +13,6 @@ register_router = APIRouter(
     tags=["Authentication"],
     responses={404: {"description": "Not found"}},
 )
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def hash_password(password: str) -> str:
-    """비밀번호 해싱"""
-    return pwd_context.hash(password)
 
 @register_router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_user(user: RegisterUser, db: Session = Depends(get_db)):
