@@ -24,6 +24,79 @@ chat_router = APIRouter(
 manager = ConnectManager()
 redis = RedisManager()
 
+
+# 채팅방 생성
+@chat_router.post("/rooms", response_model=ChatRoomRead)
+def create_chat_room(room_name: str, creator_id: int, db: Session = Depends(get_db)):
+    """
+    새로운 채팅방 생성
+    """
+    existing_room = db.query(ChatRoom).filter(ChatRoom.name == room_name).first()
+    if existing_room:
+        raise HTTPException(status_code=400, detail="Chat room name already exists")
+
+    chat_room = ChatRoom(name=room_name)
+    db.add(chat_room)
+    db.commit()
+    db.refresh(chat_room)
+
+    creator = db.query(Member).filter(Member.id == creator_id).first()
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    chat_room.members.append(creator)
+    db.commit()
+
+    return ChatRoomRead(
+        id=chat_room.id,
+        name=chat_room.name,
+        created_at=chat_room.created_at,
+        last_message=None,
+    )
+
+
+# 채팅방 멤버 초대
+@chat_router.post("/rooms/{room_id}/invite")
+def invite_member_to_chat_room(room_id: int, member_id: int, db: Session = Depends(get_db)):
+    """
+    채팅방에 멤버 초대
+    """
+    chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if member in chat_room.members:
+        raise HTTPException(status_code=400, detail="Member is already in the chat room")
+
+    chat_room.members.append(member)
+    db.commit()
+    return {"message": f"Member {member.username} added to chat room {chat_room.name}"}
+
+# 채팅방 나가기
+@chat_router.post("/rooms/{room_id}/leave")
+def leave_chat_room(room_id: int, member_id: int, db: Session = Depends(get_db)):
+    """
+    채팅방 나가기
+    """
+    chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if member not in chat_room.members:
+        raise HTTPException(status_code=400, detail="Member is not part of the chat room")
+
+    chat_room.members.remove(member)
+    db.commit()
+    return {"message": f"Member {member.username} has left the chat room {chat_room.name}"}
+
+
 # 채팅방 조회
 @chat_router.get("/rooms", response_model=list[ChatRoomRead])
 def get_chat_rooms(user_id: int, db: Session = Depends(get_db)):

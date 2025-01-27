@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../components/Login.vue'
 import Signup from '../components/signup.vue'
+import ChatRooms from '../components/ChatRooms.vue'
 
 const routes = [
   {
@@ -12,6 +13,12 @@ const routes = [
     path: '/signup',
     name: 'signup',
     component: Signup
+  },
+  {
+    path: '/chat',
+    name: 'chat',
+    component: ChatRooms,
+    meta: { requiresAuth: true }
   }
 ]
 
@@ -20,14 +27,11 @@ const router = createRouter({
   routes
 })
 
-// 네비게이션 가드 추가
+// 네비게이션 가드
 router.beforeEach((to, from, next) => {
   const isAuthenticated = !!localStorage.getItem('access_token')
   
-  // 로그인이 필요한 페이지 목록
-  const authRequired = ['/chat']
-  
-  if (authRequired.includes(to.path) && !isAuthenticated) {
+  if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
   } else {
     next()

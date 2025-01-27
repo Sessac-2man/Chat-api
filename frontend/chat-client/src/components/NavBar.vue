@@ -2,7 +2,8 @@
   <nav class="navbar">
     <div class="nav-container">
       <router-link to="/" class="nav-logo">
-        ChatApp
+        <span class="material-icons">message</span>
+        <span class="logo-text">Chatter Wave</span>
       </router-link>
       <div class="nav-links">
         <template v-if="isAuthenticated">
@@ -49,6 +50,34 @@ export default {
 </script>
 
 <style scoped>
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;  /* 간격 미세 조정 */
+  font-size: 20px;
+  font-weight: 600;
+  color: #2D8DDD;
+  text-decoration: none;
+  height: 40px;  /* 고정 높이 설정 */
+}
+
+.nav-logo .material-icons {
+  font-size: 24px;
+  color: #2D8DDD;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;  /* 미세 상단 조정 */
+}
+
+.logo-text {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-top: 1px;  /* 텍스트 미세 상단 조정 */
+}
+
+
 .navbar {
   background-color: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
