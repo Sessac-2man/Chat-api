@@ -58,7 +58,7 @@ export default {
         params.append('client_id', 'string');  // 세미콜론 추가
         params.append('client_secret', 'string');  // 세미콜론 추가
 
-        const response = await axios.post('http://localhost:8002/user/login', params, {
+        const response = await axios.post('http://localhost:8008/user/login', params, {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }

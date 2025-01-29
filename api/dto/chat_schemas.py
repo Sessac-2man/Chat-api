@@ -19,9 +19,13 @@ class MessageRead(BaseModel):
 class ChatRoomRead(BaseModel):
     id:int
     name:str
-    create_at:datetime
+    created_at:datetime
     last_message: Optional[str] = None
 
     class Config:
         from_attributes = True
 
+class CreateChatRoomPayload(BaseModel):
+    room_name: str
+    
+    

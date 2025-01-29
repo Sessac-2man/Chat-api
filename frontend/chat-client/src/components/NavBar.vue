@@ -21,19 +21,20 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 
 export default {
   name: 'NavBar',
   computed: {
-    ...mapGetters(['isAuthenticated']),
+    ...mapGetters(['isAuthenticated', 'getUsername']),
     username() {
       return localStorage.getItem('username') || '사용자';
     }
   },
   methods: {
+    ...mapActions(['logout']),
     handleLogout() {
-      this.$store.dispatch('logout');
+      this.logout();
       localStorage.removeItem('access_token');
       localStorage.removeItem('username');
       this.$router.push('/login');
@@ -45,6 +46,41 @@ export default {
     if (token) {
       this.$store.dispatch('setToken', token);
     }
+  },
+  mounted() {
+    if (this.isAuthenticated && this.$refs.userMenuTrigger) {
+      tippy(this.$refs.userMenuTrigger, {
+        content: `
+          <div class="menu-container">
+            <div class="menu-item" onclick="this._tippy.hide()">
+              <span class="material-icons">chat</span>
+              채팅 시작
+            </div>
+            <div class="menu-item" onclick="this._tippy.hide()">
+              <span class="material-icons">person</span>
+              회원 정보
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" onclick="document.dispatchEvent(new CustomEvent('logout'))">
+              <span class="material-icons">logout</span>
+              로그아웃
+            </div>
+          </div>
+        `,
+        allowHTML: true,
+        interactive: true,
+        theme: 'light',
+        placement: 'bottom-end',
+        trigger: 'click',
+        arrow: true
+      });
+
+      // 로그아웃 이벤트 리스너
+      document.addEventListener('logout', this.handleLogout);
+    }
+  },
+  beforeUnmount() {
+    document.removeEventListener('logout', this.handleLogout);
   }
 };
 </script>
@@ -137,5 +173,35 @@ export default {
   color: #742DDD;
   background-color: #f5f5f5;
   border-radius: 4px;
+}
+
+/* Tippy 메뉴 스타일 */
+.menu-container {
+  padding: 0.5rem;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  color: #333;
+}
+
+.menu-item:hover {
+  background: #f5f5f5;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #eee;
+  margin: 0.5rem 0;
+}
+
+.menu-item .material-icons {
+  font-size: 1.2rem;
 }
 </style>

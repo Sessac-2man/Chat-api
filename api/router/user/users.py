@@ -50,11 +50,11 @@ async def get_all_users(db: Session = Depends(get_db)):
 
         # Redis에 데이터가 없으면 DB에서 가져와 Redis에 동기화
         if warning_count == 0:
-            warning_count = user.warning_count or 0
+            warning_count = user.warnings  or 0
             redis_manager.client.set(f"user:{user.id}:hate_count", warning_count)
 
         if not is_banned:
-            is_banned = user.is_banned or False
+            is_banned = user.is_blocked or False
             redis_manager.client.set(f"user:{user.id}:is_banned", "1" if is_banned else "0")
 
         user_data.append(
@@ -104,11 +104,11 @@ def read_users_me(current_user: Member = Depends(get_current_user), db: Session 
 
     # Redis에 데이터가 없으면 DB에서 가져와 Redis에 동기화
     if warning_count == 0:
-        warning_count = current_user.warning_count or 0
+        warning_count = current_user.warnings  or 0
         redis_manager.client.set(f"user:{current_user.id}:hate_count", warning_count)
 
     if not is_banned:
-        is_banned = current_user.is_banned or False
+        is_banned = current_user.is_blocked or False
         redis_manager.client.set(f"user:{current_user.id}:is_banned", "1" if is_banned else "0")
 
     return UserRead(
@@ -118,4 +118,5 @@ def read_users_me(current_user: Member = Depends(get_current_user), db: Session 
         warning_count=warning_count,
         is_banned=is_banned
     )
+
 

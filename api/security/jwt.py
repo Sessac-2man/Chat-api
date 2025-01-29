@@ -18,6 +18,14 @@ def decode_access_token(token: str):
     """JWT 검증 및 디코딩"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"Decoded payload: {payload}")  # 디버깅 로그
         return payload
-    except JWTError:
+    except jwt.ExpiredSignatureError:
+        print("Token has expired")  # 토큰 만료
+        return None
+    except jwt.JWTClaimsError:
+        print("Invalid claims in the token")  # 잘못된 클레임
+        return None
+    except JWTError as e:
+        print(f"JWT Error: {e}")  # 기타 JWT 에러
         return None

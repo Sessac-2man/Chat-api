@@ -3,7 +3,15 @@ import Login from '../components/Login.vue'
 import Signup from '../components/signup.vue'
 import ChatRooms from '../components/ChatRooms.vue'
 
+import App from '../App.vue'
+
+
 const routes = [
+  {
+    path: '/',
+    name: 'home',
+    component: App  // 홈 페이지로 설정
+  },
   {
     path: '/login',
     name: 'login',

@@ -44,7 +44,7 @@
 import NavBar from './components/NavBar.vue'
 import Footer from './components/Footer.vue'
 import Login from './components/Login.vue'
-import Signup from './components/Signup.vue'
+import Signup from './components/signup.vue'
 
 
 export default {
@@ -60,21 +60,6 @@ export default {
 </script>
 
 <style>
-:root {
-  --primary-color: #2D8DDD;
-  --primary-dark: #1A6BBF;
-  --primary-light: #5BAAE7;
-  --accent-color: #FFFFFF;
-}
-
-/* 기존 스타일의 #742DDD를 var(--primary-color)로 변경 */
-.btn-primary {
-  background-color: var(--primary-color);
-}
-
-.nav-logo {
-  color: var(--primary-color);
-}
 
 
 

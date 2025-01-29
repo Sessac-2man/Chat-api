@@ -47,7 +47,10 @@ class ChatRoom(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    created_by = Column(Integer, ForeignKey("members.id"), nullable=False)  # 추가된 필드
 
     # Relationships
     messages = relationship("Message", back_populates="chat_room")
     members = relationship("Member", secondary=chat_room_members, back_populates="chat_rooms")
+    creator = relationship("Member", foreign_keys=[created_by])  # 생성자와의 관계
+

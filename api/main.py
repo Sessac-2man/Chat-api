@@ -8,6 +8,8 @@ from router.chat_service.chat import chat_router
 
 app = FastAPI()
 
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,4 +23,4 @@ app.include_router(auth_router)
 app.include_router(chat_router)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8008, reload=True)
