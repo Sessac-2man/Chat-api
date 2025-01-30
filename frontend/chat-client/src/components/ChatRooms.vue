@@ -150,7 +150,7 @@ export default {
     return new Date(dateString).toLocaleDateString(undefined, options);
   },
   formatTime(timestamp) {
-    const date = new Date(timestamp);
+    const date = new Date(timestamp); 
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   },
   async loadChatRooms() {
