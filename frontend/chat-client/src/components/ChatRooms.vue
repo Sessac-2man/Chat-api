@@ -148,7 +148,7 @@ export default {
   formatDate(dateString) {
     const options = { year: "numeric", month: "short", day: "numeric" };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  },
+  }, 
   formatTime(timestamp) {
     const date = new Date(timestamp); 
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
