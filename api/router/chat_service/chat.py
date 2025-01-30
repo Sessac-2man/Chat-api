@@ -10,7 +10,7 @@ from cached.redis_manager import RedisManager
 from datetime import datetime
 
 from config.database import get_db
-from config.models import Message, Member, ChatRoom
+from config.models import Message, Member, ChatRoom, HateSpeechLog, chat_room_members 
 
 from security.auth import *
 
@@ -61,6 +61,144 @@ def create_chat_room(
         "created_at": chat_room.created_at,
     }
 
+@chat_router.websocket("/ws/{room_id}")
+async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str, db: Session = Depends(get_db)):
+    try:
+        await websocket.accept()
+
+        # JWT 토큰 검증
+        payload = decode_access_token(token)
+        if not payload:
+            await websocket.send_json({"error": "Invalid token"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        username = payload.get("sub")
+        user = db.query(Member).filter(Member.username == username).first()
+        if not user:
+            await websocket.send_json({"error": "User not found"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # Redis에서 차단 상태 확인
+        is_banned = redis.check_ban_status(user.id)
+        if is_banned:
+            await websocket.send_json({"error": "User is banned"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # 채팅방 존재 여부 확인
+        chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not chat_room:
+            await websocket.send_json({"error": "Chat room not found"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # WebSocket 매니저에 사용자 등록
+        await manager.connect(websocket, room_id)
+        print(f"User {username} connected to room {room_id}")
+
+        while True:
+            try:
+                # 메시지 수신
+                data = await websocket.receive_json()
+                content = data.get("message")
+                if not content:
+                    await websocket.send_json({"error": "Empty message"})
+                    continue
+
+                # 혐오 표현 필터링
+                classify_result = await classify_text([content])
+                label = classify_result[0]["label"]
+
+                if label == "혐오":
+                    is_banned = redis.increment_hate_count(user.id, db)
+                    warning_count = redis.get_hate_count(user.id)
+
+                    # 🚨 혐오 표현 로그 DB 저장
+                    hate_speech_log = HateSpeechLog(
+                        user_id=user.id,
+                        chat_room_id=room_id,
+                        content=content,
+                        warning_count=warning_count,
+                        username=user.username
+                    )
+    
+                    
+                    
+                    db.add(hate_speech_log)
+                    
+                    
+
+                    # 사용자 경고 횟수 증가 (Member 테이블의 warnings 필드 업데이트)
+                    user.warnings = warning_count  # Member 모델의 warnings 필드 업
+                    db.commit()
+
+                    if is_banned:
+                        # 🚨 해당 사용자에게 차단 알림 (alert)
+                        await websocket.send_json({
+                            "username": "System",
+                            "content": "차단되었습니다. 더 이상 메시지를 보낼 수 없습니다.",
+                            "alert": True,  # 클라이언트에서 alert 처리
+                            "redirect": True
+                        })
+
+                        # ⚠️ 방 전체에 차단 알림 브로드캐스트
+                        await manager.broadcast(
+                            {"username": "System", "content": f"{username}님이 차단되었습니다.", "room_id": room_id},
+                            room_id
+                        )
+
+                        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                        return
+
+                    # 🚨 사용자에게 개별적으로 경고 알림
+                    await websocket.send_json({
+                        "username": "System",
+                        "content": f"경고 {warning_count}/3: 혐오 표현이 감지되었습니다.",
+                        "alert": True  # 클라이언트에서 alert 처리
+                    })
+
+                    # ⚠️ 방 전체에 시스템 메시지로 경고 알림
+                    await manager.broadcast(
+                        {"username": "System", "content": f"{username}님이 경고 {warning_count}/3을 받았습니다.", "room_id": room_id},
+                        room_id
+                    )
+                    continue
+
+                # 메시지 저장 및 브로드캐스트
+                message = Message(content=content, user_id=user.id, chat_room_id=room_id)
+                db.add(message)
+                db.commit()
+
+                # 현재 시간을 ISO 형식으로 추가
+                timestamp = datetime.utcnow().isoformat()
+
+                # 브로드캐스트 메시지에 시간 추가
+                await manager.broadcast(
+                    {
+                        "username": username,
+                        "content": content,
+                        "room_id": room_id,
+                        "timestamp": timestamp  # 시간 추가
+                    },
+                    room_id
+                )
+
+            except WebSocketDisconnect:
+                print(f"User {username} disconnected from room {room_id}")
+                manager.disconnect(websocket, room_id)
+                break
+
+            except Exception as e:
+                print(f"Message handling error: {e}")
+                await websocket.send_json({"error": "Internal server error"})
+                break
+
+    except Exception as e:
+        print(f"Critical WebSocket Error: {e}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+
 
 
 # 채팅방 멤버 초대
@@ -108,18 +246,16 @@ def leave_chat_room(room_id: int, member_id: int, db: Session = Depends(get_db))
 
 # 채팅방 조회
 @chat_router.get("/rooms", response_model=list[ChatRoomRead])
-def get_chat_rooms(current_user: Member = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_chat_rooms(db: Session = Depends(get_db), current_user: Member = Depends(get_current_user)):
     """
-    현재 로그인한 사용자의 채팅방 목록 반환
+    사용자가 속한 채팅방 목록을 조회
     """
-    chat_rooms = (
-        db.query(ChatRoom)
-        .filter(ChatRoom.members.any(id=current_user.id))
-        .all()
-    )
+    # 사용자가 속한 채팅방만 조회
+    chat_rooms = db.query(ChatRoom).join(chat_room_members).filter(chat_room_members.c.member_id == current_user.id).all()
 
     response = []
     for room in chat_rooms:
+        # 마지막 메시지 조회
         last_message = (
             db.query(Message.content)
             .filter(Message.chat_room_id == room.id)
@@ -140,111 +276,30 @@ def get_chat_rooms(current_user: Member = Depends(get_current_user), db: Session
 
 
 
-# 채팅방 접속
 
-@chat_router.websocket("/ws/{room_id}")
-async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str, db: Session = Depends(get_db)):
-    await websocket.accept()
+# 특정 채팅방에 입장하기 위한 로직 
+@chat_router.post("/rooms/{room_id}/join")
+def join_chat_room(room_id: int, db: Session = Depends(get_db), current_user: Member = Depends(get_current_user)):
+    """
+    사용자가 특정 채팅방에 입장
+    """
+    chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
 
-    try:
-        # JWT 토큰 검증
-        payload = decode_access_token(token)
-        if not payload:
-            await websocket.send_json({"error": "Invalid token"})
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
+    if current_user in chat_room.members:
+        return {"message": f"You are already in the chat room {chat_room.name}"}
 
-        username = payload.get("sub")
-        user = db.query(Member).filter(Member.username == username).first()
-        if not user:
-            await websocket.send_json({"error": "User not found"})
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
+    chat_room.members.append(current_user)
+    db.commit()
 
-        # 🚨 Redis에서 사용자의 차단 상태 확인
-        is_banned = redis.check_ban_status(user.id)
-        if is_banned is None:
-            # Redis에 데이터가 없으면 DB에서 가져와 Redis에 동기화
-            is_banned = user.is_blocked or False
-            redis.client.set(f"user:{user.id}:is_banned", "1" if is_banned else "0")
+    return {"message": f"User {current_user.username} joined chat room {chat_room.name}"}
 
-        # 차단된 경우 연결을 종료하고 에러 메시지를 보냄
-        if is_banned:
-            await websocket.send_json({"error": "User is banned"})
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
 
-        # 채팅방 존재 여부 확인
-        chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
-        if not chat_room:
-            await websocket.send_json({"error": "Chat room not found"})
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
 
-        # 사용자 WebSocket 연결
-        await manager.connect(websocket, room_id)
-        print(f"User {username} connected to room {room_id}")
 
-        while True:
-            data = await websocket.receive_json()
-            content = data.get("message")
-            msg_type = data.get("type", "message")
 
-            if msg_type == "pong":
-                continue
 
-            if not content:
-                await websocket.send_json({"error": "Empty message"})
-                continue
-
-            # 혐오 표현 필터링
-            classify_result = await classify_text([content])
-            label = classify_result[0]["label"]
-
-            if label == "혐오":
-                is_banned = redis.increment_hate_count(user.id)
-                if is_banned:
-                    await manager.broadcast({
-                        "username": "System",
-                        "content": f"{username}님이 차단되었습니다.",
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "room_id": room_id,
-                    }, room_id)
-                    redis.sync_hate_data_to_db(user.id, db)
-                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                    return
-
-                warning_count = redis.get_hate_count(user.id)
-                await manager.broadcast({
-                    "username": "System",
-                    "content": f"경고 {warning_count}/3: 혐오 표현이 감지되었습니다.",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "room_id": room_id,
-                }, room_id)
-                continue
-
-            # 메시지 저장 및 브로드캐스트
-            message = Message(content=content, user_id=user.id, chat_room_id=room_id)
-            db.add(message)
-            db.commit()
-
-            await manager.broadcast({
-                "username": username,
-                "content": content,
-                "timestamp": datetime.utcnow().isoformat(),
-                "room_id": room_id,
-            }, room_id)
-
-    except WebSocketDisconnect:
-        print(f"User {username} disconnected from room {room_id}")
-        manager.disconnect(websocket, room_id)
-
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-
-    finally:
-        print(f"WebSocket connection with {username} closed.")
 
 
 
@@ -253,24 +308,23 @@ def get_messages(room_id: int, db: Session = Depends(get_db), current_user: Memb
     """
     채팅방 메시지 조회
     """
-    # 채팅방 존재 여부 확인
     chat_room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
     if not chat_room:
         raise HTTPException(status_code=404, detail="Chat room not found")
 
-    # 사용자가 해당 채팅방의 멤버인지 확인
     if current_user not in chat_room.members:
         raise HTTPException(status_code=403, detail="User is not a member of this chat room")
 
-    # 채팅방 메시지 조회
     messages = (
         db.query(Message)
         .filter(Message.chat_room_id == room_id)
-        .order_by(Message.timestamp.asc())  # 시간순 정렬
+        .order_by(Message.timestamp.asc())
         .all()
     )
 
-    # 메시지 목록 반환
+    # 디버깅 로그
+    print(f"🔍 쿼리된 메시지: {[message.content for message in messages]}")
+
     return [
         {
             "id": message.id,

@@ -9,7 +9,11 @@
             <h1>실시간 채팅으로<br>소통을 시작하세요</h1>
             <p>안전하고 빠른 실시간 채팅 서비스를 경험해보세요</p>
             <div class="hero-buttons">
-              <router-link to="/signup" class="btn btn-primary">무료로 시작하기</router-link>
+              <router-link
+                :to="isAuthenticated ? '/chat' : '/login'"
+                class="btn btn-primary"
+              >
+                무료로 시작하기</router-link>
               <router-link to="/login" class="btn btn-secondary">로그인</router-link>
             </div>
           </div>
@@ -41,6 +45,8 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 import NavBar from './components/NavBar.vue'
 import Footer from './components/Footer.vue'
 import Login from './components/Login.vue'
@@ -55,7 +61,10 @@ export default {
     Login,
     Signup,
 
-  }
+  },
+  computed: {
+    ...mapGetters(['isAuthenticated']), // Vuex에서 인증 상태를 가져옵니다.
+  },
 }
 </script>
 
@@ -181,13 +190,25 @@ export default {
   }
 
 }
-
 #app {
   font-family: 'Noto Sans KR', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
-  display: block;
+  min-height: 100vh; /* 최소 높이 설정 */
+  display: flex; /* flex 레이아웃으로 설정 */
+  flex-direction: column; /* 상단부터 아래로 배치 */
+  padding: 0;
+  margin: 0 auto; /* 화면 중앙 정렬 */
+}
+
+.main-content {
+  flex: 1; /* 남은 공간을 차지하도록 설정 */
+  max-width: 1200px; /* 최대 너비 설정 */
+  margin: 65px auto; /* 중앙 정렬 */
+  padding: 20px; /* 내부 여백 추가 */
+  display: flex;
+  flex-direction: column; /* 세로 레이아웃 */
+  background-color: #ffffff; /* 배경색 */
 }
 
 .home {

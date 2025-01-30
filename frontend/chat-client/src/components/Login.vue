@@ -67,6 +67,8 @@ export default {
         if (response.data && response.data.access_token) {
           localStorage.setItem('access_token', response.data.access_token);  // 세미콜론 추가
           localStorage.setItem('username', this.form.username);  // 세미콜론 추가
+
+          this.$store.dispatch('setBanStatus', response.data.is_banned);
           
           this.$store.dispatch('setToken', response.data.access_token);  // 세미콜론 추가
           alert('로그인이 완료되었습니다!');  // 세미콜론 추가

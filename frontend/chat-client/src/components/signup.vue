@@ -78,7 +78,7 @@ export default {
           return
         }
 
-        const response = await axios.post('http://localhost:8004/user/register', {
+        const response = await axios.post('http://localhost:8008/user/register', {
           username: this.form.username,
           email: this.form.email,  // 이메일 추가
           password: this.form.password

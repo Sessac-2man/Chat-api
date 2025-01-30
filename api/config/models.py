@@ -21,8 +21,8 @@ class Member(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    warnings = Column(Integer, default=0)  # 경고 횟수
-    is_blocked = Column(Boolean, default=False)  # 차단 여부
+    warnings = Column(Integer, default=0)  # 🚀 경고 횟수 추가
+    is_blocked = Column(Boolean, default=False)  # 🚀 차단 여부 추가
 
     # Relationships
     messages = relationship("Message", back_populates="owner")
@@ -36,6 +36,9 @@ class Message(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("members.id"), nullable=False)
     chat_room_id = Column(Integer, ForeignKey("chat_rooms.id"), nullable=False)
+
+    is_hate_speech = Column(Boolean, default=False)  # 🚀 혐오 표현 여부 추가
+    warning_count = Column(Integer, default=0)  # 🚀 경고 횟수 추가
 
     # Relationships
     owner = relationship("Member", back_populates="messages")
@@ -54,3 +57,21 @@ class ChatRoom(Base):
     members = relationship("Member", secondary=chat_room_members, back_populates="chat_rooms")
     creator = relationship("Member", foreign_keys=[created_by])  # 생성자와의 관계
 
+class HateSpeechLog(Base):
+    """
+    🚀 혐오 표현 감지 로그 테이블 추가
+    - 혐오 표현 메시지 로그 추적을 위한 별도 테이블
+    """
+    __tablename__ = "hate_speech_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("members.id"), nullable=False)
+    chat_room_id = Column(Integer, ForeignKey("chat_rooms.id"), nullable=False)
+    content = Column(String, nullable=False)
+    username = Column(String, nullable=False) 
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    warning_count = Column(Integer, default=0)  # 🚀 몇 번째 경고인지 저장
+
+    # Relationships
+    user = relationship("Member")
+    chat_room = relationship("ChatRoom")

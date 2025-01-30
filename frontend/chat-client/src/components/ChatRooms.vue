@@ -57,7 +57,7 @@
         <div 
           v-for="(message, index) in messages" 
           :key="message.id || index"
-          :class="['message', { 'my-message': message.username === username }]"
+          :class="['message', { 'my-message': message.username === getUsername }]"
         >
           <div class="message-info">
             <span class="message-username">{{ message.username }}</span>
@@ -135,142 +135,207 @@ export default {
       return this.getUsername; // 컴포넌트 내에서 더 쉽게 접근하기 위해 추가
     },
   },
+  
+
+  watch: {
+  username(newUsername) {
+    if (this.currentRoom) {
+      this.loadMessages(this.currentRoom.id); // 메시지 새로 로드
+    }
+  }
+},
   methods: {
-    formatDate(dateString) {
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString(undefined, options);
-    },
-    formatTime(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    },
-    async loadChatRooms() {
-      this.isLoading = true;
-      console.log("채팅방 로드 시작");
-      try {
-        const response = await axios.get("http://localhost:8008/chat/rooms", {
-          headers: { Authorization: `Bearer ${this.getToken}` },
-        });
-        this.chatRooms = response.data;
-        console.log("채팅방 로드 성공:", this.chatRooms);
-      } catch (error) {
-        console.error("채팅방 로드 실패:", error);
-        alert("채팅방을 불러오는 데 실패했습니다.");
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    async createRoom() {
-      if (!this.newRoomName.trim()) return;
-      try {
-        const response = await axios.post(
-          "http://localhost:8008/chat/rooms",
-          { room_name: this.newRoomName }, // 'room_name'으로 수정
-          {
-            headers: {
-              Authorization: `Bearer ${this.getToken}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        const newRoom = response.data;
-        this.chatRooms.push(newRoom);
-        this.showCreateRoomModal = false;
-        this.newRoomName = "";
-        this.selectRoom(newRoom);
-
-        alert("채팅방이 성공적으로 생성되었습니다.");
-      } catch (error) {
-        console.error("채팅방 생성 실패:", error);
-        alert("채팅방 생성에 실패했습니다.");
-      }
-    },
-    selectRoom(room) {
-      this.currentRoom = room;
-      this.messages = [];
-      this.loadMessages(room.id); // 메시지 로드 추가
-      this.connectWebSocket(room.id);
-    },
-    async loadMessages(roomId) {
-      try {
-        const response = await axios.get(`http://localhost:8008/chat/rooms/${roomId}/messages`, {
-          headers: { Authorization: `Bearer ${this.getToken}` },
-        });
-        this.messages = response.data;
-        this.scrollToBottom();
-      } catch (error) {
-        console.error("메시지 로드 실패:", error);
-        alert("메시지를 불러오는 데 실패했습니다.");
-      }
-    },
-    connectWebSocket(roomId) {
-      if (this.ws) this.ws.close(); // 기존 연결 종료
-
-      const wsUrl = `ws://localhost:8008/chat/ws/${roomId}?token=${this.getToken}`; // '/chat' 프리픽스 추가
-      console.log('WebSocket 연결 시도:', wsUrl); // 디버깅용 로그 추가
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        this.wsConnected = true;
-        console.log('WebSocket 연결됨:', wsUrl);
-      };
-
-      this.ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.error) {
-          console.error("서버 오류:", message.error);
-          alert(`오류: ${message.error}`);
-          return;
-        }
-        this.messages.push(message);
-        this.scrollToBottom();
-      };
-
-      this.ws.onclose = (event) => {
-        this.wsConnected = false;
-        console.log('WebSocket 연결 종료:', event.code, event.reason);
-        if (event.code !== 1000) { // 정상 종료가 아닐 경우 재연결 시도
-          setTimeout(() => {
-            this.connectWebSocket(roomId);
-          }, 3000);
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error('WebSocket 에러:', error);
-      };
-    },
-    sendMessage() {
-      if (this.wsConnected && this.newMessage.trim()) {
-        const messagePayload = {
-          message: this.newMessage, // 서버에서 'message' 키를 기대
-          username: this.username,
-        };
-        this.ws.send(JSON.stringify(messagePayload));
-        this.messages.push({
-          ...messagePayload,
-          timestamp: new Date().toISOString(),
-        });
-        this.newMessage = "";
-        this.scrollToBottom();
-      }
-    },
-    scrollToBottom() {
-      this.$nextTick(() => {
-        const container = this.$refs.messageContainer;
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
+  formatDate(dateString) {
+    const options = { year: "numeric", month: "short", day: "numeric" };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  },
+  formatTime(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  },
+  async loadChatRooms() {
+    this.isLoading = true;
+    try {
+      const response = await axios.get("http://localhost:8008/chat/rooms", {
+        headers: { Authorization: `Bearer ${this.getToken}` },
       });
-    },
+      this.chatRooms = response.data;
+    } catch (error) {
+      console.error("🚨 채팅방 로드 실패:", error);
+      alert("채팅방을 불러오는 데 실패했습니다.");
+    } finally {
+      this.isLoading = false;
+    }
   },
-  async mounted() {
+  async createRoom() {
+    if (!this.newRoomName.trim()) return;
+    try {
+      const response = await axios.post(
+        "http://localhost:8008/chat/rooms",
+        { room_name: this.newRoomName },
+        {
+          headers: {
+            Authorization: `Bearer ${this.getToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const newRoom = response.data;
+      this.chatRooms.push(newRoom);
+      this.showCreateRoomModal = false;
+      this.newRoomName = "";
+      this.selectRoom(newRoom);
+
+      alert("✅ 채팅방이 성공적으로 생성되었습니다.");
+    } catch (error) {
+      console.error("🚨 채팅방 생성 실패:", error);
+      alert("채팅방 생성에 실패했습니다.");
+    }
+  },
+  selectRoom(room) {
+    console.log("📌 채팅방 선택:", room);
+    this.currentRoom = room;
+    this.messages = [];
+    this.loadMessages(room.id);
+    this.connectWebSocket(room.id);
+  },
+  async loadMessages(roomId) {
+  try {
+    const response = await axios.get(
+      `http://localhost:8008/chat/rooms/${roomId}/messages`,
+      {
+        headers: { 
+          Authorization: `Bearer ${this.getToken}` // JWT 토큰 포함
+        },
+      }
+    );
+    this.messages = response.data;
+  } catch (error) {
+    console.error("🚨 메시지 로드 실패:", error);
+
+    if (error.response && error.response.status === 403) {
+      alert("해당 채팅방에 접근 권한이 없습니다.");
+    } else {
+      alert("메시지를 불러오는 데 실패했습니다.");
+    }
+  }
+},
+
+
+
+  /**
+   * ✅ WebSocket 연결 개선 (중복 코드 제거 및 자동 재연결 추가)
+   */
+  connectWebSocket(roomId) {
+    if (this.ws) {
+      console.log("🔌 기존 WebSocket 연결 종료");
+      this.ws.close();
+      this.ws = null;
+    }
+
+    const wsUrl = `ws://localhost:8008/chat/ws/${roomId}?token=${this.getToken}`;
+    console.log(`🔗 WebSocket 연결 시도: ${wsUrl}`);
+
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onopen = () => {
+      console.log(`✅ WebSocket 연결됨: 방 ID ${roomId}`);
+      this.wsConnected = true;
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      
+      if (message.error) {
+        console.error("❌ 서버 오류:", message.error);
+        alert(`🚨 오류: ${message.error}`);
+        return;
+      }
+
+      if (message.redirect){
+        this.$store.dispatch("logout");  // Vuex 로그아웃
+        alert("🚫 차단되었습니다. 메인 페이지로 이동합니다.");
+        this.$router.push("/");
+      }
+
+      if (message.alert) {
+    // 🚨 혐오 표현 감지 시 경고 메시지 개별 알림
+    alert(message.content);
+    return;
+  }
+      
+
+      console.log("📩 새 메시지 도착:", message);
+      this.messages.push({
+    username: message.username,
+    content: message.content,
+    room_id: message.room_id,
+    timestamp: message.timestamp,
+  });
+      this.scrollToBottom();
+    };
+
+    this.ws.onclose = (event) => {
+      console.warn("⚠️ WebSocket 연결 종료:", event.reason);
+      this.wsConnected = false;
+
+      // ❗ 자동 재연결 추가 (네트워크 끊김 대비)
+      if (!event.wasClean) {
+        console.log("🔄 WebSocket 재연결 시도...");
+        setTimeout(() => this.connectWebSocket(roomId), 3000);
+      }
+    };
+
+    this.ws.onerror = (error) => {
+      console.error("⚠️ WebSocket 오류 발생:", error);
+    };
+  },
+
+  sendMessage() {
+    if (this.wsConnected && this.newMessage !== "") {
+      const messagePayload = {
+        message: this.newMessage,
+        username: this.username,
+      };
+      this.ws.send(JSON.stringify(messagePayload));
+      this.messages.push({
+        ...messagePayload,
+        timestamp: new Date().toISOString(),
+      });
+      this.newMessage = "";
+      this.scrollToBottom();
+    }
+  },
+
+  scrollToBottom() {
+    this.$nextTick(() => {
+      const container = this.$refs.messageContainer;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  },
+},
+async mounted() {
+  console.log("🔄 컴포넌트 마운트됨: 채팅방 로드 시작");
+  if (this.getToken) {
     await this.loadChatRooms();
-  },
-  beforeUnmount() {
-    if (this.ws) this.ws.close();
-  },
+    if (this.currentRoom) {
+      await this.loadMessages(this.currentRoom.id);
+    }
+  }
+},
+beforeUnmount() {
+  if (this.ws) {
+    console.log("🔌 컴포넌트 언마운트 - WebSocket 연결 종료");
+    this.ws.close();
+    this.ws = null;
+  }
+},
+
+
 };
+
 </script>
 
 <style scoped>
