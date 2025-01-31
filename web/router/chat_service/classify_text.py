@@ -4,7 +4,8 @@ from fastapi import HTTPException
 import asyncio
 
 # 혐오 표현 감지 API URL
-CLASSIFY_API_ENDPOINT = "http://localhost/model_api/api/inference/classify"
+CLASSIFY_API_ENDPOINT = "http://proxy-server/model_api/api/inference/classify"
+
 
 async def classify_text(texts: List[str]) -> List[Dict[str, str]]:
     """

@@ -140,9 +140,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-api/migrations/
-api/alembic.ini
-api/.env
+web/migrations/
+web/alembic.ini
+web/.env
 # C extensions
 *.so
 

@@ -6,7 +6,7 @@ from config.models import Member  # Member 모델 import
 
 class RedisManager:
 
-    def __init__(self, host: str = "localhost", port: int = 6379, password: str = None):
+    def __init__(self, host: str = "redis-server", port: int = 6379, password: str = None):
         self.client = redis.StrictRedis(
             host=host,
             port=port,
